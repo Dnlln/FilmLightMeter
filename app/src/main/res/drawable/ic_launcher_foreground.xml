@@ -1,0 +1,18 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Диафрагма-лепестки -->
+    <group android:translateX="54" android:translateY="54">
+        <path
+            android:fillColor="#C59B58"
+            android:pathData="M 0,-28 L 24,-14 L 24,14 L 0,28 L -24,14 L -24,-14 Z" />
+        <path
+            android:fillColor="#1A1814"
+            android:pathData="M 0,-16 L 13.86,-8 L 13.86,8 L 0,16 L -13.86,8 L -13.86,-8 Z" />
+        <path
+            android:fillColor="#E8DFC4"
+            android:pathData="M -2,-8 L 2,-8 L 2,8 L -2,8 Z" />
+    </group>
+</vector>
