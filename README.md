@@ -9,7 +9,13 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-B4442F?style=flat-square)](./LICENSE)
 
 <p align="center">
-  <img src="docs/screenshots/main-screen.jpg" alt="FilmLightMeter — главный экран v1.0.1" width="320"/>
+  <img src="docs/screenshots/pairs-card.jpg" alt="FilmLightMeter v1.2.0 — блок «Варианты съёмки» с реальными парами выдержка×диафрагма" width="300"/>
+  &nbsp;&nbsp;
+  <img src="docs/screenshots/help-dialog.jpg" alt="FilmLightMeter v1.2.0 — встроенная справка с таблицей EV и пошаговой инструкцией" width="300"/>
+</p>
+
+<p align="center">
+  <sub><b>Слева:</b> главный экран с подбором пар из шкал Зенит-12сд и Гелиос-44М. <b>Справа:</b> диалог справки с таблицей EV для типичных сцен.</sub>
 </p>
 
 ## 📷 Зачем это нужно
