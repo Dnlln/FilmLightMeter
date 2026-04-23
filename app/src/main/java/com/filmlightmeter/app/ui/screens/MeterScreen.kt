@@ -165,7 +165,7 @@ fun MeterScreen(
                     fontFamily = FontFamily.Monospace
                 )
                 Text(
-                    "%.1f".format(state.effectiveEv100),
+                    String.format(java.util.Locale.US, "%.1f", state.effectiveEv100),
                     color = CreamDial,
                     fontFamily = FontFamily.Monospace,
                     fontWeight = FontWeight.Bold,
@@ -229,7 +229,7 @@ fun MeterScreen(
             ValueStrip(
                 label = "ДИАФРАГМА  f/",
                 values = ExposureMath.STANDARD_APERTURES.map {
-                    "%.1f".format(it).trimEnd('0').trimEnd('.')
+                    String.format(java.util.Locale.US, "%.1f", it).trimEnd('0').trimEnd('.')
                 },
                 selectedIndex = ExposureMath.STANDARD_APERTURES.indexOfFirst {
                     kotlin.math.abs(it - state.aperture) < 0.01
@@ -506,7 +506,7 @@ private fun StopAdjuster(
         ) { Text("−") }
         Spacer(Modifier.width(10.dp))
         Text(
-            "%+.2f EV".format(value),
+            String.format(java.util.Locale.US, "%+.2f EV", value),
             color = CreamDial,
             fontFamily = FontFamily.Monospace,
             modifier = Modifier.width(80.dp)

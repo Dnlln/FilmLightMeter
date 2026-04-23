@@ -1,5 +1,6 @@
 package com.filmlightmeter.app.exposure
 
+import java.util.Locale
 import kotlin.math.ln
 import kotlin.math.log2
 import kotlin.math.pow
@@ -117,14 +118,17 @@ object ExposureMath {
             return if (seconds == seconds.roundToInt().toDouble()) {
                 "${seconds.roundToInt()}s"
             } else {
-                "%.1fs".format(seconds)
+                String.format(Locale.US, "%.1fs", seconds)
             }
         }
         val denom = (1.0 / seconds).roundToInt()
         return "1/$denom"
     }
 
-    fun formatAperture(n: Double): String = "f/${"%.1f".format(n).trimEnd('0').trimEnd('.')}"
+    fun formatAperture(n: Double): String {
+        val formatted = String.format(Locale.US, "%.1f", n).trimEnd('0').trimEnd('.')
+        return "f/$formatted"
+    }
 
     /**
      * Компенсация взаимности (reciprocity failure) для плёнки.
