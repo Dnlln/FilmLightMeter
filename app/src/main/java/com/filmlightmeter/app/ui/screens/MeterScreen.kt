@@ -265,20 +265,32 @@ fun MeterScreen(
         Spacer(Modifier.height(14.dp))
 
         // --- Экспопара: крупным шрифтом ---
-        val shutterText = ExposureMath.formatShutter(
-            when (state.priority) {
-                PriorityMode.APERTURE -> state.computedShutter
-                PriorityMode.SHUTTER -> state.shutterSeconds
-            }
-        )
+        val snap = state.shutterSnap
+        val shutterText = when (state.priority) {
+            PriorityMode.APERTURE ->
+                if (snap?.useBulb == true) "B"
+                else ExposureMath.formatShutter(state.computedShutter)
+            PriorityMode.SHUTTER -> ExposureMath.formatShutter(state.shutterSeconds)
+        }
         val apertureText = ExposureMath.formatAperture(
             when (state.priority) {
-                PriorityMode.APERTURE -> state.aperture
+                PriorityMode.APERTURE -> state.apertureCompensatedForSnap
                 PriorityMode.SHUTTER -> state.computedAperture
             }
         )
 
         ExposurePairCard(shutterText, apertureText, state.priority, vm::setPriority)
+
+        // Подсказка о подгонке под шкалу камеры и предупреждения
+        if (state.snapToCamera && state.priority == PriorityMode.APERTURE && snap != null) {
+            Spacer(Modifier.height(6.dp))
+            SnapInfoBanner(
+                camera = state.camera,
+                snap = snap,
+                idealShutter = state.idealShutter,
+                compensatedAperture = state.apertureCompensatedForSnap
+            )
+        }
 
         Spacer(Modifier.height(12.dp))
 
@@ -296,13 +308,19 @@ fun MeterScreen(
                 highlighted = true
             )
         } else {
+            // В приоритете выдержки показываем только выдержки камеры (если snap вкл.)
+            val shutterValues = if (state.snapToCamera)
+                state.camera.shutters
+            else
+                ExposureMath.STANDARD_SHUTTERS
             ValueStrip(
-                label = "ВЫДЕРЖКА",
-                values = ExposureMath.STANDARD_SHUTTERS.map(ExposureMath::formatShutter),
-                selectedIndex = ExposureMath.STANDARD_SHUTTERS.indexOfFirst {
+                label = if (state.snapToCamera) "ВЫДЕРЖКА  ·  ${state.camera.name}"
+                        else "ВЫДЕРЖКА",
+                values = shutterValues.map(ExposureMath::formatShutter),
+                selectedIndex = shutterValues.indexOfFirst {
                     kotlin.math.abs(it - state.shutterSeconds) < 1e-5
                 }.coerceAtLeast(0),
-                onSelect = { vm.setShutter(ExposureMath.STANDARD_SHUTTERS[it]) },
+                onSelect = { vm.setShutter(shutterValues[it]) },
                 highlighted = true
             )
         }
@@ -385,6 +403,63 @@ fun MeterScreen(
             }
         }
 
+        Spacer(Modifier.height(10.dp))
+
+        // --- Камера (плёночный аппарат) ---
+        var cameraMenuOpen by remember { mutableStateOf(false) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "КАМЕРА",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = BrassAccent
+                )
+                Text(
+                    state.camera.name,
+                    color = CreamDial,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    state.camera.notes,
+                    color = CreamDial.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Box {
+                OutlinedButton(
+                    onClick = { cameraMenuOpen = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent)
+                ) { Text("Выбрать") }
+                DropdownMenu(
+                    expanded = cameraMenuOpen,
+                    onDismissRequest = { cameraMenuOpen = false },
+                    modifier = Modifier.background(LeatherBrown)
+                ) {
+                    com.filmlightmeter.app.data.CameraPresets.all.forEach { preset ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(preset.name, color = CreamDial)
+                                    Text(
+                                        preset.notes,
+                                        color = CreamDial.copy(alpha = 0.6f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            },
+                            onClick = {
+                                vm.setCamera(preset)
+                                cameraMenuOpen = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(12.dp))
 
         if (settingsOpen) {
@@ -392,6 +467,63 @@ fun MeterScreen(
         }
 
         Spacer(Modifier.height(20.dp))
+    }
+}
+
+@Composable
+private fun SnapInfoBanner(
+    camera: com.filmlightmeter.app.data.CameraPreset,
+    snap: ExposureMath.ShutterSnap,
+    idealShutter: Double,
+    compensatedAperture: Double
+) {
+    val (text, warning) = when {
+        snap.useBulb -> Pair(
+            "Нужна выдержка длиннее ${ExposureMath.formatShutter(camera.slowest)} — снимайте на режиме B примерно ${ExposureMath.formatShutter(idealShutter)}",
+            true
+        )
+        snap.overexposed -> Pair(
+            "Сцена слишком яркая: на ${ExposureMath.formatShutter(camera.fastest)} осталось +${String.format(java.util.Locale.US, "%.1f", snap.compensationStops)} EV. Прикройте диафрагму или используйте ND-фильтр",
+            true
+        )
+        kotlin.math.abs(snap.compensationStops) < 0.05 -> Pair(
+            "Выдержка ${ExposureMath.formatShutter(snap.snappedShutter)} — точно по шкале",
+            false
+        )
+        else -> {
+            val idealStr = ExposureMath.formatShutter(idealShutter)
+            val snappedStr = ExposureMath.formatShutter(snap.snappedShutter)
+            val diffStr = String.format(java.util.Locale.US, "%+.2f", snap.compensationStops)
+            val apStr = ExposureMath.formatAperture(compensatedAperture)
+            Pair(
+                "Идеал: $idealStr → на камере $snappedStr ($diffStr EV). Диафрагма скомпенсирована до $apStr",
+                false
+            )
+        }
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (warning) LeatherDark else LeatherBrown.copy(alpha = 0.6f))
+            .border(
+                1.dp,
+                if (warning) BrassAccent else BrassAccent.copy(alpha = 0.4f),
+                RoundedCornerShape(8.dp)
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            if (warning) "⚠ " else "ℹ ",
+            color = BrassAccent,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text,
+            color = CreamDial.copy(alpha = 0.9f),
+            style = MaterialTheme.typography.bodySmall
+        )
     }
 }
 
@@ -531,6 +663,31 @@ private fun SettingsPanel(vm: MeterViewModel) {
                 selected = state.reciprocityOn,
                 onClick = vm::toggleReciprocity,
                 label = { Text(if (state.reciprocityOn) "ВКЛ" else "ВЫКЛ") },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = BrassAccent,
+                    selectedLabelColor = LeatherDark,
+                    containerColor = LeatherBrown,
+                    labelColor = CreamDial
+                )
+            )
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "Подгонять под шкалу камеры",
+                    color = CreamDial
+                )
+                Text(
+                    "Ближайшая доступная выдержка + компенсация диафрагмой",
+                    color = CreamDial.copy(alpha = 0.6f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            FilterChip(
+                selected = state.snapToCamera,
+                onClick = vm::toggleSnapToCamera,
+                label = { Text(if (state.snapToCamera) "ВКЛ" else "ВЫКЛ") },
                 colors = FilterChipDefaults.filterChipColors(
                     selectedContainerColor = BrassAccent,
                     selectedLabelColor = LeatherDark,

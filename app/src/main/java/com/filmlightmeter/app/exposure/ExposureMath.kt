@@ -139,4 +139,74 @@ object ExposureMath {
         if (shutterSeconds <= 1.0) return shutterSeconds
         return shutterSeconds.pow(exponent)
     }
+
+    // -------- Подгонка под реальную шкалу камеры --------
+
+    /**
+     * Результат подгонки идеального значения выдержки к дискретной шкале камеры.
+     *
+     * @property snappedShutter ближайшая выдержка из набора камеры (сек)
+     * @property compensationStops насколько «снаппинг» сдвинул EV: log2(snapped / ideal).
+     *   Положительное число означает что камера держит дольше, чем надо, то есть
+     *   экспозиция «переработана» на эти стопы — надо **прикрыть** диафрагму.
+     * @property useBulb true, если даже самой длинной выдержки мало и нужен режим B
+     * @property overexposed true, если даже самой короткой выдержки мало
+     *   (нужно либо прикрыть диафрагму больше, чем позволяет объектив, либо ND-фильтр)
+     */
+    data class ShutterSnap(
+        val snappedShutter: Double,
+        val compensationStops: Double,
+        val useBulb: Boolean,
+        val overexposed: Boolean
+    )
+
+    /**
+     * Подогнать идеальное значение выдержки под дискретный набор камеры.
+     *
+     * Логика: из списка берём ближайшую по логарифму (в стопах) выдержку.
+     * Если идеал длиннее самой длинной и у камеры есть B — предлагаем B
+     * (возвращаем идеальное значение как snappedShutter + флаг useBulb).
+     * Если идеал короче самой короткой — возвращаем самую короткую + флаг
+     * overexposed: в этом случае разницу надо отрабатывать диафрагмой/ND.
+     */
+    fun snapShutterToCamera(
+        idealShutter: Double,
+        availableShutters: List<Double>,
+        hasBulb: Boolean
+    ): ShutterSnap {
+        require(availableShutters.isNotEmpty()) { "shutter list empty" }
+        val fastest = availableShutters.min()
+        val slowest = availableShutters.max()
+
+        // Идеал длиннее самой длинной — пробуем B
+        if (idealShutter > slowest * 1.01 && hasBulb) {
+            return ShutterSnap(
+                snappedShutter = idealShutter,
+                compensationStops = 0.0,
+                useBulb = true,
+                overexposed = false
+            )
+        }
+
+        // Идеал короче самой короткой — передержка, берём самую короткую
+        if (idealShutter < fastest * 0.99) {
+            val comp = log2(fastest / idealShutter)
+            return ShutterSnap(
+                snappedShutter = fastest,
+                compensationStops = comp,
+                useBulb = false,
+                overexposed = true
+            )
+        }
+
+        val nearest = availableShutters.minBy { kotlin.math.abs(ln(it) - ln(idealShutter)) }
+        // Положительная компенсация = snapped держит дольше идеала = диафрагму надо прикрыть
+        val compensationStops = log2(nearest / idealShutter)
+        return ShutterSnap(
+            snappedShutter = nearest,
+            compensationStops = compensationStops,
+            useBulb = false,
+            overexposed = false
+        )
+    }
 }
