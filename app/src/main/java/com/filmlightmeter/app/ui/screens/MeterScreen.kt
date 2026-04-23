@@ -51,7 +51,6 @@ import com.filmlightmeter.app.data.FilmPresets
 import com.filmlightmeter.app.exposure.ExposureMath
 import com.filmlightmeter.app.ui.MeterViewModel
 import com.filmlightmeter.app.ui.PriorityMode
-import com.filmlightmeter.app.ui.components.AnalogEvDial
 import com.filmlightmeter.app.ui.components.CameraPreview
 import com.filmlightmeter.app.ui.components.ValueStrip
 import com.filmlightmeter.app.ui.theme.BrassAccent
@@ -207,17 +206,6 @@ fun MeterScreen(
 
         Spacer(Modifier.height(14.dp))
 
-        // --- Аналоговый циферблат EV ---
-        Box(
-            Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 30.dp)
-        ) {
-            AnalogEvDial(ev = state.effectiveEv100.toFloat())
-        }
-
-        Spacer(Modifier.height(14.dp))
-
         // --- Экспопара: крупным шрифтом ---
         val shutterText = ExposureMath.formatShutter(
             when (state.priority) {
@@ -261,6 +249,28 @@ fun MeterScreen(
             )
         }
 
+        Spacer(Modifier.height(12.dp))
+
+        // --- ISO (ручной выбор) ---
+        val isoValues = ExposureMath.STANDARD_ISOS
+        val isoLabels = buildList {
+            add("AUTO") // = брать ISO из плёнки
+            addAll(isoValues.map { it.toString() })
+        }
+        val isoSelectedIdx = if (state.customIso == null) 0
+            else (isoValues.indexOf(state.customIso) + 1).coerceAtLeast(0)
+        ValueStrip(
+            label = "ISO  ·  ${state.effectiveIso}" +
+                if (state.customIso != null) "  (ручной)" else "  (плёнка)",
+            values = isoLabels,
+            selectedIndex = isoSelectedIdx,
+            onSelect = { idx ->
+                if (idx == 0) vm.setIso(null)
+                else vm.setIso(isoValues[idx - 1])
+            },
+            highlighted = state.customIso != null
+        )
+
         Spacer(Modifier.height(10.dp))
 
         // --- Плёнка ---
@@ -280,7 +290,7 @@ fun MeterScreen(
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Text(
-                    "ISO ${state.film.iso} · ${state.film.notes}",
+                    "ISO плёнки ${state.film.iso} · ${state.film.notes}",
                     color = CreamDial.copy(alpha = 0.7f),
                     style = MaterialTheme.typography.bodyMedium
                 )

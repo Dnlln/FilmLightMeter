@@ -15,6 +15,7 @@ enum class PriorityMode { APERTURE, SHUTTER }
 
 data class MeterUiState(
     val film: FilmPreset = FilmPresets.default,
+    val customIso: Int? = null,          // ручной ISO; null = брать из плёнки
     val priority: PriorityMode = PriorityMode.APERTURE,
     val aperture: Double = 8.0,
     val shutterSeconds: Double = 1.0 / 125,
@@ -28,23 +29,33 @@ data class MeterUiState(
     val frozenEv100: Double? = null,    // зафиксированный замер
     val reciprocityOn: Boolean = true,
 ) {
+    /** Действующее ISO: ручное (если задано) или из пресета плёнки. */
+    val effectiveIso: Int
+        get() = customIso ?: film.iso
+
     val effectiveEv100: Double
         get() = (frozenEv100 ?: ev100) + evCompensation - ndStops + calibration
 
     val computedShutter: Double
-        get() = ExposureMath.shutterFromEv(effectiveEv100, film.iso, aperture).let { t ->
+        get() = ExposureMath.shutterFromEv(effectiveEv100, effectiveIso, aperture).let { t ->
             if (reciprocityOn) ExposureMath.reciprocityCorrection(t, film.reciprocityExponent) else t
         }
 
     val computedAperture: Double
-        get() = ExposureMath.apertureFromEv(effectiveEv100, film.iso, shutterSeconds)
+        get() = ExposureMath.apertureFromEv(effectiveEv100, effectiveIso, shutterSeconds)
 }
 
 class MeterViewModel : ViewModel() {
     private val _state = MutableStateFlow(MeterUiState())
     val state: StateFlow<MeterUiState> = _state.asStateFlow()
 
-    fun setFilm(f: FilmPreset) = _state.update { it.copy(film = f) }
+    fun setFilm(f: FilmPreset) = _state.update {
+        // При смене плёнки сбрасываем ручной ISO, чтобы синхронизироваться с новой плёнкой
+        it.copy(film = f, customIso = null)
+    }
+
+    /** Установить ручной ISO. Значение null вернёт ISO плёнки. */
+    fun setIso(iso: Int?) = _state.update { it.copy(customIso = iso) }
 
     fun setPriority(p: PriorityMode) = _state.update { it.copy(priority = p) }
 
