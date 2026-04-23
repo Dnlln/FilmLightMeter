@@ -17,9 +17,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
@@ -42,10 +44,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.app.Activity
+import android.widget.Toast
 import com.filmlightmeter.app.camera.MeteringMode
 import com.filmlightmeter.app.data.FilmPresets
 import com.filmlightmeter.app.exposure.ExposureMath
@@ -57,6 +63,7 @@ import com.filmlightmeter.app.ui.theme.BrassAccent
 import com.filmlightmeter.app.ui.theme.CreamDial
 import com.filmlightmeter.app.ui.theme.LeatherBrown
 import com.filmlightmeter.app.ui.theme.LeatherDark
+import com.filmlightmeter.app.util.ScreenCapture
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +75,9 @@ fun MeterScreen(
     val state by vm.state.collectAsState()
     var filmMenuOpen by remember { mutableStateOf(false) }
     var settingsOpen by remember { mutableStateOf(false) }
+    var aboutOpen by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val uriHandler = LocalUriHandler.current
 
     Column(
         modifier = Modifier
@@ -97,13 +107,26 @@ fun MeterScreen(
                     color = CreamDial.copy(alpha = 0.7f)
                 )
             }
-            IconButton(onClick = { settingsOpen = !settingsOpen }) {
+            IconButton(onClick = { aboutOpen = true }) {
                 Icon(
                     Icons.Filled.Tune,
-                    contentDescription = "Настройки",
+                    contentDescription = "О приложении",
                     tint = BrassAccent
                 )
             }
+        }
+
+        if (aboutOpen) {
+            AboutDialog(
+                onDismiss = { aboutOpen = false },
+                onOpenSettings = {
+                    aboutOpen = false
+                    settingsOpen = true
+                },
+                onOpenGithub = {
+                    uriHandler.openUri("https://github.com/Dnlln/FilmLightMeter")
+                }
+            )
         }
 
         Spacer(Modifier.height(12.dp))
@@ -188,9 +211,10 @@ fun MeterScreen(
 
         Spacer(Modifier.height(10.dp))
 
-        // --- Режимы замера ---
+        // --- Режимы замера + кнопка «Снять» ---
         Row(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier.fillMaxWidth()
         ) {
             ModeChip("Точка", state.meteringMode == MeteringMode.SPOT) {
@@ -201,6 +225,40 @@ fun MeterScreen(
             }
             ModeChip("Матрица", state.meteringMode == MeteringMode.MATRIX) {
                 vm.setMeteringMode(MeteringMode.MATRIX)
+            }
+            Spacer(Modifier.weight(1f))
+            Button(
+                onClick = {
+                    val activity = context as? Activity
+                    if (activity == null) {
+                        Toast.makeText(context, "Не удалось сделать снимок", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    ScreenCapture.capture(activity) { result ->
+                        when (result) {
+                            is ScreenCapture.Result.Success ->
+                                Toast.makeText(
+                                    context,
+                                    "Сохранено в галерею: ${result.fileName}",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            is ScreenCapture.Result.Error ->
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrassAccent,
+                    contentColor = LeatherDark
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Icon(
+                    Icons.Filled.CameraAlt,
+                    contentDescription = null,
+                    modifier = Modifier.padding(end = 4.dp)
+                )
+                Text("Снять", fontWeight = FontWeight.Bold)
             }
         }
 
@@ -482,6 +540,62 @@ private fun SettingsPanel(vm: MeterViewModel) {
             )
         }
     }
+}
+
+@Composable
+private fun AboutDialog(
+    onDismiss: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenGithub: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = LeatherDark,
+        titleContentColor = BrassAccent,
+        textContentColor = CreamDial,
+        title = { Text("FILM LIGHT METER") },
+        text = {
+            Column {
+                Text(
+                    "Экспонометр для плёночной фотографии с расчётом экспопары по камере смартфона.",
+                    color = CreamDial
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    "Проект с открытым кодом — звёздочка на GitHub помогает развиваться:",
+                    color = CreamDial.copy(alpha = 0.8f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(6.dp))
+                OutlinedButton(
+                    onClick = onOpenGithub,
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("github.com/Dnlln/FilmLightMeter") }
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "Точная настройка: коррекция EV, ND-фильтр, калибровка, взаимность плёнки.",
+                    color = CreamDial.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onOpenSettings,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = BrassAccent,
+                    contentColor = LeatherDark
+                )
+            ) { Text("Настройки") }
+        },
+        dismissButton = {
+            OutlinedButton(
+                onClick = onDismiss,
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = CreamDial)
+            ) { Text("Закрыть") }
+        }
+    )
 }
 
 @Composable
