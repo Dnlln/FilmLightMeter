@@ -7,6 +7,8 @@ import com.filmlightmeter.app.data.CameraPreset
 import com.filmlightmeter.app.data.CameraPresets
 import com.filmlightmeter.app.data.FilmPreset
 import com.filmlightmeter.app.data.FilmPresets
+import com.filmlightmeter.app.data.LensPreset
+import com.filmlightmeter.app.data.LensPresets
 import com.filmlightmeter.app.exposure.ExposureMath
 import kotlin.math.pow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,6 +21,7 @@ enum class PriorityMode { APERTURE, SHUTTER }
 data class MeterUiState(
     val film: FilmPreset = FilmPresets.default,
     val camera: CameraPreset = CameraPresets.default,  // плёночный аппарат
+    val lens: LensPreset = LensPresets.default,        // объектив
     val customIso: Int? = null,          // ручной ISO; null = брать из плёнки
     val priority: PriorityMode = PriorityMode.APERTURE,
     val aperture: Double = 8.0,
@@ -80,6 +83,26 @@ data class MeterUiState(
             // N_comp = N * sqrt(2^compStops)
             return aperture * 2.0.pow(snap.compensationStops / 2.0)
         }
+
+    /**
+     * Топ-N вариантов реальных пар выдержка×диафрагма для текущей сцены.
+     * Учитывает поправку на взаимность плёнки (встроена в сам алгоритм через
+     * эффективный EV: длинные выдержки требуют больше света).
+     */
+    fun bestPairs(count: Int = 4): List<ExposureMath.ExposurePair> {
+        // Поправка на reciprocity учитывается в idealShutter, поэтому пересчитываем
+        // эффективный EV из текущей диафрагмы и idealShutter — чтобы все пары
+        // давали одинаковую экспозицию на плёнке.
+        val effectiveEvIso = kotlin.math.log2(aperture * aperture / idealShutter)
+        val effectiveEv100 = effectiveEvIso - kotlin.math.log2(effectiveIso / 100.0)
+        return ExposureMath.findBestPairs(
+            ev100 = effectiveEv100,
+            iso = effectiveIso,
+            shutters = camera.shutters,
+            apertures = lens.apertures,
+            count = count
+        )
+    }
 }
 
 class MeterViewModel : ViewModel() {
@@ -92,6 +115,8 @@ class MeterViewModel : ViewModel() {
     }
 
     fun setCamera(c: CameraPreset) = _state.update { it.copy(camera = c) }
+
+    fun setLens(l: LensPreset) = _state.update { it.copy(lens = l) }
 
     fun toggleSnapToCamera() = _state.update { it.copy(snapToCamera = !it.snapToCamera) }
 

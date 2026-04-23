@@ -17,10 +17,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
-import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -109,8 +109,8 @@ fun MeterScreen(
             }
             IconButton(onClick = { aboutOpen = true }) {
                 Icon(
-                    Icons.Filled.Tune,
-                    contentDescription = "О приложении",
+                    Icons.AutoMirrored.Filled.HelpOutline,
+                    contentDescription = "Справка",
                     tint = BrassAccent
                 )
             }
@@ -281,14 +281,30 @@ fun MeterScreen(
 
         ExposurePairCard(shutterText, apertureText, state.priority, vm::setPriority)
 
-        // Подсказка о подгонке под шкалу камеры и предупреждения
-        if (state.snapToCamera && state.priority == PriorityMode.APERTURE && snap != null) {
+        // Предупреждения о выходе за диапазон
+        if (state.snapToCamera && snap != null && (snap.useBulb || snap.overexposed)) {
             Spacer(Modifier.height(6.dp))
-            SnapInfoBanner(
-                camera = state.camera,
-                snap = snap,
-                idealShutter = state.idealShutter,
-                compensatedAperture = state.apertureCompensatedForSnap
+            WarningBanner(
+                text = when {
+                    snap.useBulb ->
+                        "Нужна выдержка длиннее ${ExposureMath.formatShutter(state.camera.slowest)} — снимайте на режиме B примерно ${ExposureMath.formatShutter(state.idealShutter)}"
+                    else ->
+                        "Сцена слишком яркая: даже на ${ExposureMath.formatShutter(state.camera.fastest)} не хватает. Прикройте диафрагму или используйте ND-фильтр"
+                }
+            )
+        }
+
+        // Варианты реальных пар (выдержка × диафрагма)
+        if (state.snapToCamera) {
+            Spacer(Modifier.height(10.dp))
+            ExposurePairsCard(
+                pairs = state.bestPairs(4),
+                lensName = state.lens.name,
+                cameraName = state.camera.name,
+                onPick = { pair ->
+                    vm.setAperture(pair.aperture)
+                    vm.setShutter(pair.shutter)
+                }
             )
         }
 
@@ -460,6 +476,63 @@ fun MeterScreen(
             }
         }
 
+        Spacer(Modifier.height(10.dp))
+
+        // --- Объектив ---
+        var lensMenuOpen by remember { mutableStateOf(false) }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    "ОБЪЕКТИВ",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = BrassAccent
+                )
+                Text(
+                    state.lens.name,
+                    color = CreamDial,
+                    style = MaterialTheme.typography.bodyLarge
+                )
+                Text(
+                    state.lens.notes,
+                    color = CreamDial.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+            Box {
+                OutlinedButton(
+                    onClick = { lensMenuOpen = true },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent)
+                ) { Text("Выбрать") }
+                DropdownMenu(
+                    expanded = lensMenuOpen,
+                    onDismissRequest = { lensMenuOpen = false },
+                    modifier = Modifier.background(LeatherBrown)
+                ) {
+                    com.filmlightmeter.app.data.LensPresets.all.forEach { preset ->
+                        DropdownMenuItem(
+                            text = {
+                                Column {
+                                    Text(preset.name, color = CreamDial)
+                                    Text(
+                                        preset.notes,
+                                        color = CreamDial.copy(alpha = 0.6f),
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            },
+                            onClick = {
+                                vm.setLens(preset)
+                                lensMenuOpen = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
         Spacer(Modifier.height(12.dp))
 
         if (settingsOpen) {
@@ -471,59 +544,115 @@ fun MeterScreen(
 }
 
 @Composable
-private fun SnapInfoBanner(
-    camera: com.filmlightmeter.app.data.CameraPreset,
-    snap: ExposureMath.ShutterSnap,
-    idealShutter: Double,
-    compensatedAperture: Double
-) {
-    val (text, warning) = when {
-        snap.useBulb -> Pair(
-            "Нужна выдержка длиннее ${ExposureMath.formatShutter(camera.slowest)} — снимайте на режиме B примерно ${ExposureMath.formatShutter(idealShutter)}",
-            true
-        )
-        snap.overexposed -> Pair(
-            "Сцена слишком яркая: на ${ExposureMath.formatShutter(camera.fastest)} осталось +${String.format(java.util.Locale.US, "%.1f", snap.compensationStops)} EV. Прикройте диафрагму или используйте ND-фильтр",
-            true
-        )
-        kotlin.math.abs(snap.compensationStops) < 0.05 -> Pair(
-            "Выдержка ${ExposureMath.formatShutter(snap.snappedShutter)} — точно по шкале",
-            false
-        )
-        else -> {
-            val idealStr = ExposureMath.formatShutter(idealShutter)
-            val snappedStr = ExposureMath.formatShutter(snap.snappedShutter)
-            val diffStr = String.format(java.util.Locale.US, "%+.2f", snap.compensationStops)
-            val apStr = ExposureMath.formatAperture(compensatedAperture)
-            Pair(
-                "Идеал: $idealStr → на камере $snappedStr ($diffStr EV). Диафрагма скомпенсирована до $apStr",
-                false
-            )
-        }
-    }
+private fun WarningBanner(text: String) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (warning) LeatherDark else LeatherBrown.copy(alpha = 0.6f))
-            .border(
-                1.dp,
-                if (warning) BrassAccent else BrassAccent.copy(alpha = 0.4f),
-                RoundedCornerShape(8.dp)
-            )
+            .background(LeatherDark)
+            .border(1.dp, BrassAccent, RoundedCornerShape(8.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            if (warning) "⚠ " else "ℹ ",
-            color = BrassAccent,
-            fontWeight = FontWeight.Bold
-        )
+        Text("⚠ ", color = BrassAccent, fontWeight = FontWeight.Bold)
         Text(
             text,
             color = CreamDial.copy(alpha = 0.9f),
             style = MaterialTheme.typography.bodySmall
         )
+    }
+}
+
+@Composable
+private fun ExposurePairsCard(
+    pairs: List<ExposureMath.ExposurePair>,
+    lensName: String,
+    cameraName: String,
+    onPick: (ExposureMath.ExposurePair) -> Unit
+) {
+    if (pairs.isEmpty()) return
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(LeatherDark)
+            .border(1.dp, BrassAccent.copy(alpha = 0.5f), RoundedCornerShape(10.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+    ) {
+        Text(
+            "ВАРИАНТЫ СЪЕМКИ",
+            color = BrassAccent,
+            style = MaterialTheme.typography.labelLarge
+        )
+        Text(
+            "Реальные пары из шкал $cameraName / $lensName — нажмите чтобы выбрать",
+            color = CreamDial.copy(alpha = 0.6f),
+            style = MaterialTheme.typography.bodySmall
+        )
+        Spacer(Modifier.height(8.dp))
+        pairs.forEach { pair ->
+            PairRow(pair, onClick = { onPick(pair) })
+            Spacer(Modifier.height(4.dp))
+        }
+    }
+}
+
+@Composable
+private fun PairRow(
+    pair: ExposureMath.ExposurePair,
+    onClick: () -> Unit
+) {
+    val borderColor = when {
+        pair.isExact -> BrassAccent
+        kotlin.math.abs(pair.errorStops) < 0.5 -> BrassAccent.copy(alpha = 0.5f)
+        else -> CreamDial.copy(alpha = 0.3f)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .background(LeatherBrown.copy(alpha = 0.3f))
+            .padding(horizontal = 12.dp, vertical = 8.dp)
+            .then(Modifier),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Выдержка
+        Text(
+            ExposureMath.formatShutter(pair.shutter),
+            color = CreamDial,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            modifier = Modifier.width(70.dp)
+        )
+        Text("×", color = BrassAccent, fontFamily = FontFamily.Serif, fontSize = 16.sp)
+        Spacer(Modifier.width(10.dp))
+        // Диафрагма
+        Text(
+            ExposureMath.formatAperture(pair.aperture),
+            color = CreamDial,
+            fontFamily = FontFamily.Serif,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            modifier = Modifier.width(70.dp)
+        )
+        Spacer(Modifier.weight(1f))
+        // Ошибка
+        val errText = if (pair.isExact) "точно"
+            else String.format(java.util.Locale.US, "%+.2f EV", pair.errorStops)
+        Text(
+            errText,
+            color = if (pair.isExact) BrassAccent else CreamDial.copy(alpha = 0.7f),
+            fontFamily = FontFamily.Monospace,
+            fontSize = 12.sp
+        )
+        Spacer(Modifier.width(8.dp))
+        OutlinedButton(
+            onClick = onClick,
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+            colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent)
+        ) { Text("✓", fontSize = 14.sp) }
     }
 }
 
@@ -710,31 +839,80 @@ private fun AboutDialog(
         containerColor = LeatherDark,
         titleContentColor = BrassAccent,
         textContentColor = CreamDial,
-        title = { Text("FILM LIGHT METER") },
+        title = { Text("СПРАВКА") },
         text = {
-            Column {
-                Text(
-                    "Экспонометр для плёночной фотографии с расчётом экспопары по камере смартфона.",
-                    color = CreamDial
-                )
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    "Проект с открытым кодом — звёздочка на GitHub помогает развиваться:",
-                    color = CreamDial.copy(alpha = 0.8f),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Spacer(Modifier.height(6.dp))
-                OutlinedButton(
-                    onClick = onOpenGithub,
-                    colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent),
-                    modifier = Modifier.fillMaxWidth()
-                ) { Text("github.com/Dnlln/FilmLightMeter") }
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    "Точная настройка: коррекция EV, ND-фильтр, калибровка, взаимность плёнки.",
-                    color = CreamDial.copy(alpha = 0.7f),
-                    style = MaterialTheme.typography.bodySmall
-                )
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+            ) {
+                HelpSection("Что такое EV") {
+                    Text(
+                        "EV (Exposure Value) — число, которое одновременно описывает яркость сцены и настройки камеры. +1 EV = вдвое больше света, −1 EV = вдвое меньше. Одна единица = один стоп экспозиции.",
+                        color = CreamDial
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Формула: EV = log₂(N² / t), где N — диафрагма, t — выдержка (сек). Всегда указывается для ISO 100 (EV₁₀₀).",
+                        color = CreamDial.copy(alpha = 0.75f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                HelpSection("Таблица EV для типичных сцен") {
+                    EvTableRow("Звёздное небо, Млечный путь", "−4 … −2")
+                    EvTableRow("Свет полной луны", "−2 … 0")
+                    EvTableRow("Ночная улица, витрины", "3 … 6")
+                    EvTableRow("Комната с лампой", "5 … 7")
+                    EvTableRow("Получас до/после заката", "8 … 10")
+                    EvTableRow("Яркий закат / облачно вне дома", "10 … 12")
+                    EvTableRow("Пасмурный день", "12 … 13")
+                    EvTableRow("Лёгкая дымка, солнце в облаках", "13 … 14")
+                    EvTableRow("Солнечный день (sunny 16)", "15")
+                    EvTableRow("Снег / пляж на солнце", "16")
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "Поправка ISO: +log₂(ISO/100). ISO 200 → +1, ISO 400 → +2, ISO 800 → +3.",
+                        color = CreamDial.copy(alpha = 0.7f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                HelpSection("Как пользоваться") {
+                    HelpStep("1.", "Выберите плёнку, камеру и объектив — приложение ограничит расчёт их реальными выдержками и диафрагмами.")
+                    HelpStep("2.", "Наведите телефон на сцену или серую карту. В левом углу превью появится EV₁₀₀.")
+                    HelpStep("3.", "Выберите режим замера: Точка (по центру), Центр (с весами) или Матрица (весь кадр).")
+                    HelpStep("4.", "Замок рядом с EV фиксирует замер — можно перенаправить телефон, не потеряв значение.")
+                    HelpStep("5.", "В блоке «Варианты съемки» показываются 3–4 реальные пары выдержка×диафрагма с одинаковой экспозицией. Выберите по ситуации.")
+                    HelpStep("6.", "Метка «точно» — пара попадает в EV без ошибки. Если написано «+0.33 EV» — снимок будет на 1/3 стопа светлее.")
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                HelpSection("Полезные хитрости") {
+                    Text(
+                        "• Portra и другие негативные плёнки любят +0.5…1 EV передержки.\n" +
+                        "• Слайды (Velvia, Ektachrome) — наоборот, −0.3 EV даёт более насыщенные цвета.\n" +
+                        "• В тени при ярком солнце — на 2–3 EV темнее, чем на свету.\n" +
+                        "• Снег и белые сцены — требуют +1 EV, иначе будут серыми.",
+                        color = CreamDial.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+
+                Spacer(Modifier.height(14.dp))
+
+                HelpSection("GitHub и открытый код") {
+                    OutlinedButton(
+                        onClick = onOpenGithub,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = BrassAccent),
+                        modifier = Modifier.fillMaxWidth()
+                    ) { Text("github.com/Dnlln/FilmLightMeter") }
+                }
             }
         },
         confirmButton = {
@@ -753,6 +931,64 @@ private fun AboutDialog(
             ) { Text("Закрыть") }
         }
     )
+}
+
+@Composable
+private fun HelpSection(title: String, content: @Composable () -> Unit) {
+    Text(
+        title,
+        color = BrassAccent,
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold
+    )
+    Spacer(Modifier.height(6.dp))
+    content()
+}
+
+@Composable
+private fun EvTableRow(scene: String, ev: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            scene,
+            color = CreamDial,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f)
+        )
+        Text(
+            ev,
+            color = BrassAccent,
+            fontFamily = FontFamily.Monospace,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun HelpStep(num: String, text: String) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(vertical = 2.dp)
+    ) {
+        Text(
+            num,
+            color = BrassAccent,
+            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.width(22.dp)
+        )
+        Text(
+            text,
+            color = CreamDial,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
 }
 
 @Composable

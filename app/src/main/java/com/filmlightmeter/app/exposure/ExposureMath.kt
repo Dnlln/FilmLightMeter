@@ -169,6 +169,69 @@ object ExposureMath {
      * Если идеал короче самой короткой — возвращаем самую короткую + флаг
      * overexposed: в этом случае разницу надо отрабатывать диафрагмой/ND.
      */
+    // -------- Подбор реальных пар выдержка × диафрагма --------
+
+    /**
+     * Вариант экспопары из дискретных шкал камеры и объектива.
+     *
+     * @property shutter выдержка из набора камеры (сек)
+     * @property aperture диафрагма из набора объектива
+     * @property errorStops отклонение экспозиции от идеала в стопах (>0 = передержка)
+     */
+    data class ExposurePair(
+        val shutter: Double,
+        val aperture: Double,
+        val errorStops: Double
+    ) {
+        val isExact: Boolean get() = kotlin.math.abs(errorStops) < 0.17  // в пределах 1/6 стопа
+    }
+
+    /**
+     * Найти лучшие варианты съемки для дискретных шкал камеры и объектива.
+     *
+     * Перебирает все пары (t, N), считает ошибку в стопах как log2((N²/t) / target),
+     * где target = 2^EV_iso. Возвращает топ-N пар с минимальной |ошибкой|,
+     * убирая дубликаты с одинаковой диафрагмой (оставляет только лучшую выдержку для неё).
+     *
+     * @param ev100 EV для ISO 100
+     * @param iso действующее ISO
+     * @param shutters выдержки камеры
+     * @param apertures диафрагмы объектива
+     * @param count сколько вариантов выдать
+     */
+    fun findBestPairs(
+        ev100: Double,
+        iso: Int,
+        shutters: List<Double>,
+        apertures: List<Double>,
+        count: Int = 4
+    ): List<ExposurePair> {
+        val evIso = evAtIso(ev100, iso)
+        val target = 2.0.pow(evIso)  // N² / t должно равняться этому числу
+
+        data class Candidate(val t: Double, val n: Double, val err: Double)
+
+        val all = mutableListOf<Candidate>()
+        for (t in shutters) {
+            for (n in apertures) {
+                val actual = n * n / t
+                val errStops = log2(actual / target)
+                all.add(Candidate(t, n, errStops))
+            }
+        }
+
+        // Сгруппируем по диафрагме: для каждого N оставляем пару с минимальной |err|
+        val bestPerAperture = all
+            .groupBy { it.n }
+            .mapValues { (_, list) -> list.minBy { kotlin.math.abs(it.err) } }
+            .values
+            .sortedBy { kotlin.math.abs(it.err) }
+
+        return bestPerAperture
+            .take(count)
+            .map { ExposurePair(shutter = it.t, aperture = it.n, errorStops = it.err) }
+    }
+
     fun snapShutterToCamera(
         idealShutter: Double,
         availableShutters: List<Double>,
