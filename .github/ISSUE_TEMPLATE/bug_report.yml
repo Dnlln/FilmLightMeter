@@ -1,0 +1,117 @@
+name: 🐛 Баг-репорт
+description: Сообщите о проблеме в работе приложения — неверная экспопара, вылет, кривое UI.
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что сообщаете о проблеме. Чем подробнее опишете — тем быстрее починим.
+        Перед отправкой проверьте, пожалуйста, [уже открытые issue](https://github.com/Dnlln/FilmLightMeter/issues?q=is%3Aissue).
+
+  - type: input
+    id: version
+    attributes:
+      label: Версия приложения
+      description: Тег релиза или versionName из настроек.
+      placeholder: "v1.2.0"
+    validations:
+      required: true
+
+  - type: input
+    id: device
+    attributes:
+      label: Телефон и Android
+      description: Модель и версия ОС.
+      placeholder: "Pixel 7a, Android 14"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Где проявляется баг
+      multiple: false
+      options:
+        - Замер EV (неверное значение)
+        - Расчёт экспопары
+        - Варианты съёмки (подбор пар)
+        - Выбор пресетов (плёнка / камера / объектив)
+        - Скриншот (кнопка «Снять»)
+        - Справка / диалог
+        - Превью камеры
+        - Вылет / зависание
+        - Другое
+    validations:
+      required: true
+
+  - type: textarea
+    id: setup
+    attributes:
+      label: Настройки в приложении
+      description: Какие плёнка, камера, объектив, ISO, режим замера выбраны.
+      placeholder: |
+        Плёнка: Kodak Portra 400
+        Камера: Зенит-12сд
+        Объектив: Гелиос-44М
+        ISO: AUTO (из плёнки)
+        Режим замера: Центр
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Что вы ожидали
+      placeholder: "При замере пасмурного дня ожидал EV₁₀₀ ≈ 12…13."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Что произошло на самом деле
+      placeholder: "Показывает EV₁₀₀ = 9.5, выдержки уходят в длинные — кадр явно пересвечен."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+      description: По возможности по пунктам.
+      placeholder: |
+        1. Открыть приложение
+        2. Выбрать плёнку Portra 400, камеру Зенит-12сд
+        3. Навести на небо в пасмурный день
+        4. Посмотреть на EV₁₀₀
+    validations:
+      required: false
+
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Скриншот / видео
+      description: |
+        Прикрепите картинку сюда (перетащите в поле). Кнопка **«Снять»** в приложении сохраняет скриншот в галерею одним тапом.
+    validations:
+      required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Логи (если вылет)
+      description: "`adb logcat *:E` в момент ошибки, либо stacktrace."
+      render: shell
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Перед отправкой
+      options:
+        - label: Я проверил, что похожего issue ещё нет.
+          required: true
+        - label: Я использую последнюю версию приложения из [Releases](https://github.com/Dnlln/FilmLightMeter/releases).
+          required: true

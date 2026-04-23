@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Вопросы и обсуждения
+    url: https://github.com/Dnlln/FilmLightMeter/discussions
+    about: Если это не баг и не конкретное предложение — задайте вопрос в Discussions.
+  - name: 📖 Руководство по вкладу
+    url: https://github.com/Dnlln/FilmLightMeter/blob/main/CONTRIBUTING.md
+    about: Как оформить баг-репорт, предложить фичу или прислать пресет.

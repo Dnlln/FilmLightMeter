@@ -1,0 +1,60 @@
+name: 💡 Запрос на фичу
+description: Предложите улучшение или новую функцию.
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо за идею. Чем конкретнее сценарий — тем проще решить, стоит ли её делать и как именно.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Какую задачу это решает
+      description: Опишите ситуацию съёмки, в которой текущий интерфейс не справляется.
+      placeholder: "На студийной съёмке со вспышкой я не могу использовать reflected-замер — нужен инцидентный (по белой полусфере)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Предлагаемое решение
+      description: Как вы видите работу функции. Не обязательно до мелочей.
+      placeholder: "Переключатель 'Reflected / Incident' в шапке; в incident-режиме замер ведётся по серой карте с поправкой 2.5 стопа."
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Что вы уже пробовали
+      description: Обходные пути, другие приложения, ручной пересчёт.
+    validations:
+      required: false
+
+  - type: dropdown
+    id: scope
+    attributes:
+      label: К чему относится
+      multiple: true
+      options:
+        - Замер (режимы, алгоритм)
+        - Экспопара (расчёт, UI)
+        - Пресеты (плёнки / камеры / объективы)
+        - Настройки / калибровка
+        - Ретро-интерфейс / UX
+        - Интеграция (журнал, экспорт)
+        - Документация
+        - Другое
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Дополнительный контекст
+      description: Ссылки на мануалы, статьи, скриншоты других приложений.
+    validations:
+      required: false

@@ -1,0 +1,78 @@
+name: 🎞️ Новый пресет (плёнка / камера / объектив)
+description: Предложите добавить пресет плёнки, плёночной камеры или объектива.
+title: "[Preset] "
+labels: ["preset"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Спасибо, что делитесь данными. Чем точнее параметры — тем надёжнее расчёт экспозиции будет у всех пользователей.
+
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Тип пресета
+      options:
+        - Плёнка
+        - Камера
+        - Объектив
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Название
+      placeholder: "Kodak Gold 200 / Зоркий-4 / Волна-9 50/2.8"
+    validations:
+      required: true
+
+  - type: textarea
+    id: film_params
+    attributes:
+      label: Параметры плёнки (только для плёнок)
+      description: |
+        Укажите ISO, тип (негатив/слайд/ч-б) и экспонент закона взаимности (p), если известен из техпаспорта.
+      placeholder: |
+        ISO: 200
+        Тип: цветной негатив
+        Reciprocity exponent p: 1.30
+        Примечания: тёплая палитра, любит +0.5 EV передержки.
+    validations:
+      required: false
+
+  - type: textarea
+    id: camera_params
+    attributes:
+      label: Параметры камеры (только для камер)
+      description: |
+        Полный список выдержек, как нарисованы на кольце (в секундах через дробь), и есть ли режим B.
+      placeholder: |
+        Выдержки: 1, 1/2, 1/4, 1/8, 1/15, 1/30, 1/60, 1/125, 1/250, 1/500, 1/1000
+        Bulb (B): да
+        Примечания: центральный затвор, синхронизация вспышки на всех выдержках.
+    validations:
+      required: false
+
+  - type: textarea
+    id: lens_params
+    attributes:
+      label: Параметры объектива (только для объективов)
+      description: |
+        Фокусное, светосила, все значения диафрагмы как нарисованы на кольце.
+      placeholder: |
+        Фокусное: 50 мм
+        Светосила: f/1.8
+        Диафрагмы: 1.8, 2.8, 4, 5.6, 8, 11, 16
+        Шаг: полный стоп
+    validations:
+      required: false
+
+  - type: input
+    id: source
+    attributes:
+      label: Источник данных
+      description: Техпаспорт, мануал, Photrio, APUG и т.п.
+      placeholder: "https://..."
+    validations:
+      required: false
