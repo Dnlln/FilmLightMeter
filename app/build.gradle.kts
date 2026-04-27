@@ -46,6 +46,15 @@ android {
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
+
+    // Имена APK: FilmLightMeter-1.2.0-release.apk вместо app-release.apk
+    applicationVariants.all {
+        val variant = this
+        variant.outputs.all {
+            val output = this as com.android.build.gradle.internal.api.BaseVariantOutputImpl
+            output.outputFileName = "FilmLightMeter-${variant.versionName}-${variant.buildType.name}.apk"
+        }
+    }
 }
 
 dependencies {
